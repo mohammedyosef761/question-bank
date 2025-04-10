@@ -1,7 +1,7 @@
 // Admin accounts (not subject to one-time login restriction)
 export const adminUsers = [
-  { id: 'admin1', email: 'admin1@example.com', password: 'admin123', name: 'Admin One', isAdmin: true },
-  { id: 'admin2', email: 'admin2@example.com', password: 'admin456', name: 'Admin Two', isAdmin: true }
+  { id: 'admin1', email: 'admin1@example.com', password: 'admin123', name: 'Admin One', is_admin: true },
+  { id: 'admin2', email: 'admin2@example.com', password: 'admin456', name: 'Admin Two', is_admin: true }
 ];
 
 // Initial user data with 25 email/password combinations

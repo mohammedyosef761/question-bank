@@ -1,48 +1,6 @@
 import supabase from './supabase';
-import { adminUsers, initialUsers, reserveUsers } from '../data/initialData';
 import { getDeviceId } from '../utils/deviceUtils';
-
-/**
- * Initialize the database with default data
- */
-export const initializeDatabase = async () => {
-  try {
-    // Check if users table has been initialized
-    const { data: existingUsers, error: countError } = await supabase
-      .from('users')
-      .select('id')
-      .limit(1);
-
-    if (countError) throw countError;
-
-    // If no users exist, initialize the database
-    if (!existingUsers || existingUsers.length === 0) {
-      console.log('Initializing database with default data...');
-
-      // Add admin users
-      const { error: adminError } = await supabase
-        .from('users')
-        .insert(adminUsers);
-
-      if (adminError) throw adminError;
-
-      // Add regular users
-      const { error: usersError } = await supabase
-        .from('users')
-        .insert(initialUsers);
-
-      if (usersError) throw usersError;
-
-      console.log('Database initialized successfully');
-      return true;
-    }
-
-    return false;
-  } catch (error) {
-    console.error('Error initializing database:', error);
-    return false;
-  }
-};
+import { initializeDatabase } from './dbInitializer';
 
 /**
  * Get all users
@@ -106,17 +64,30 @@ export const getAvailableStudentAccounts = async () => {
  */
 export const getUserByCredentials = async (email, password) => {
   try {
+    console.log(`Attempting to authenticate user: ${email}`);
+
+    // Get user with matching email and password
     const { data, error } = await supabase
       .from('users')
       .select('*')
       .eq('email', email)
-      .eq('password', password)
-      .single();
+      .eq('password', password);
 
-    if (error) throw error;
-    return data;
+    if (error) {
+      console.error('Error getting user by credentials:', error);
+      return null;
+    }
+
+    // Check if we got any results
+    if (!data || data.length === 0) {
+      console.log(`No user found with email: ${email}`);
+      return null;
+    }
+
+    console.log(`User authenticated successfully: ${email}`);
+    return data[0]; // Return the first matching user
   } catch (error) {
-    console.error('Error getting user by credentials:', error);
+    console.error('Error in getUserByCredentials:', error);
     return null;
   }
 };
@@ -129,15 +100,14 @@ export const isEmailUsed = async (email) => {
     const { data, error } = await supabase
       .from('used_emails')
       .select('email')
-      .eq('email', email)
-      .single();
+      .eq('email', email);
 
-    if (error && error.code !== 'PGRST116') {
-      // PGRST116 is the error code for "no rows returned"
-      throw error;
+    if (error) {
+      console.error('Error checking if email is used:', error);
+      return false;
     }
 
-    return !!data;
+    return data && data.length > 0;
   } catch (error) {
     console.error('Error checking if email is used:', error);
     return false;
@@ -153,14 +123,14 @@ export const isEmailUsedOnDevice = async (email, deviceId) => {
       .from('device_emails')
       .select('*')
       .eq('email', email)
-      .eq('device_id', deviceId)
-      .single();
+      .eq('device_id', deviceId);
 
-    if (error && error.code !== 'PGRST116') {
-      throw error;
+    if (error) {
+      console.error('Error checking if email is used on device:', error);
+      return false;
     }
 
-    return !!data;
+    return data && data.length > 0;
   } catch (error) {
     console.error('Error checking if email is used on device:', error);
     return false;
@@ -220,7 +190,8 @@ export const removeUserFromAvailable = async (email) => {
     if (userError) throw userError;
 
     // Don't remove admin users
-    if (user && user.isAdmin) {
+    if (user && (user.isAdmin || user.is_admin)) {
+      console.log(`Not removing admin user: ${email}`);
       return true;
     }
 
@@ -265,32 +236,43 @@ export const removeUserFromAvailable = async (email) => {
  */
 export const saveUserQuizData = async (userId, userData) => {
   try {
+    // Add device ID if not provided
+    if (!userData.device_id) {
+      userData.device_id = getDeviceId();
+    }
+
     // Check if user data already exists
     const { data: existingData, error: checkError } = await supabase
       .from('quiz_data')
       .select('*')
-      .eq('user_id', userId)
-      .single();
+      .eq('user_id', userId);
 
-    if (checkError && checkError.code !== 'PGRST116') {
-      throw checkError;
+    if (checkError) {
+      console.error('Error checking existing quiz data:', checkError);
+      return false;
     }
 
-    if (existingData) {
+    if (existingData && existingData.length > 0) {
       // Update existing data
       const { error: updateError } = await supabase
         .from('quiz_data')
         .update(userData)
         .eq('user_id', userId);
 
-      if (updateError) throw updateError;
+      if (updateError) {
+        console.error('Error updating quiz data:', updateError);
+        return false;
+      }
     } else {
       // Insert new data
       const { error: insertError } = await supabase
         .from('quiz_data')
         .insert([{ ...userData, user_id: userId }]);
 
-      if (insertError) throw insertError;
+      if (insertError) {
+        console.error('Error inserting quiz data:', insertError);
+        return false;
+      }
     }
 
     return true;

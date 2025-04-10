@@ -56,7 +56,7 @@ export const AuthProvider = ({ children }) => {
 
       if (user) {
         // Check if this is an admin account
-        const isAdmin = user.isAdmin;
+        const isAdmin = user.isAdmin || user.is_admin;
         const deviceId = getDeviceId();
 
         // For regular (non-admin) accounts, apply restrictions
